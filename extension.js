@@ -58,6 +58,12 @@ class ServerIndicator extends PanelMenu.Button {
         this._serversSection = new PopupMenu.PopupMenuSection();
         this.menu.addMenuItem(this._serversSection);
 
+        this.menu.connect('open-state-changed', (menu, open) => {
+            if (open) {
+                this._refreshMenuServerList();
+            }
+        });
+
         this._refreshMenuServerList();
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
@@ -90,7 +96,41 @@ class ServerIndicator extends PanelMenu.Button {
             return;
         }
 
-        servers.forEach(server => {
+        // Sort order:
+        // 1. Down/Error servers first (rank 0)
+        // 2. Checking/Pending servers (rank 1)
+        // 3. OK servers sorted by Latency/Response time ascending (rank 2)
+        const sortedServers = [...servers].sort((a, b) => {
+            const statusA = this._serverStatuses.get(a);
+            const statusB = this._serverStatuses.get(b);
+
+            const getRank = status => {
+                if (status && status.alive === false) return 0; // Down/Error
+                if (!status || status.alive === null) return 1; // Checking/Unknown
+                return 2; // OK
+            };
+
+            const rankA = getRank(statusA);
+            const rankB = getRank(statusB);
+
+            if (rankA !== rankB) {
+                return rankA - rankB;
+            }
+
+            // If both are OK (rank 2), order by latency ascending (fastest first)
+            if (rankA === 2) {
+                const latA = (typeof statusA?.latencyMs === 'number' && !isNaN(statusA.latencyMs)) ? statusA.latencyMs : Infinity;
+                const latB = (typeof statusB?.latencyMs === 'number' && !isNaN(statusB.latencyMs)) ? statusB.latencyMs : Infinity;
+                if (latA !== latB) {
+                    return latA - latB;
+                }
+            }
+
+            // Fallback tie-breaker: alphabetical order
+            return a.localeCompare(b);
+        });
+
+        sortedServers.forEach(server => {
             const status = this._serverStatuses.get(server);
             const item = new PopupMenu.PopupMenuItem(server, {
                 reactive: false,
@@ -144,6 +184,14 @@ class ServerIndicator extends PanelMenu.Button {
         const servers = this._settings.get_strv('servers-list');
         const timeout = Math.max(1, this._settings.get_int('ping-timeout'));
 
+        // Clean up statuses of removed servers
+        const serverSet = new Set(servers);
+        for (const key of this._serverStatuses.keys()) {
+            if (!serverSet.has(key)) {
+                this._serverStatuses.delete(key);
+            }
+        }
+
         if (servers.length === 0) {
             this._updatePanelIcon(true);
             this._refreshMenuServerList();
@@ -152,17 +200,15 @@ class ServerIndicator extends PanelMenu.Button {
 
         this._cancelPendingChecks();
 
-        const pingPromises = servers.map(server => this._pingServer(server, timeout));
-        const results = await Promise.all(pingPromises);
-
-        let allAlive = true;
-        servers.forEach((server, i) => {
-            const result = results[i];
+        const pingPromises = servers.map(async server => {
+            const result = await this._pingServer(server, timeout);
             this._serverStatuses.set(server, result);
-            if (!result.alive) {
-                allAlive = false;
-            }
+            this._refreshMenuServerList();
+            return result;
         });
+
+        const results = await Promise.all(pingPromises);
+        const allAlive = results.every(r => r.alive);
 
         this._updatePanelIcon(allAlive);
         this._refreshMenuServerList();
@@ -182,7 +228,7 @@ class ServerIndicator extends PanelMenu.Button {
             try {
                 proc.init(cancellable);
             } catch (e) {
-                resolve({alive: false, latency: 'ERR'});
+                resolve({alive: false, latency: 'ERR', latencyMs: Infinity});
                 return;
             }
 
@@ -191,18 +237,25 @@ class ServerIndicator extends PanelMenu.Button {
                     const [ok, stdout, stderr] = proc.communicate_utf8_finish(res);
                     const exitCode = proc.get_exit_status();
                     if (exitCode === 0) {
-                        // Extract time (e.g. time=12.3 ms or time=0.4 ms)
                         let latency = 'OK';
-                        const match = stdout ? stdout.match(/time=([0-9.]+)\s*ms/) : null;
-                        if (match && match[1]) {
-                            latency = `${match[1]} ms`;
+                        let latencyMs = 0;
+                        const matchTime = stdout ? stdout.match(/time=([0-9.]+)\s*ms/i) : null;
+                        const matchRtt = stdout ? stdout.match(/rtt min\/avg\/max\/mdev = [0-9.]+\/([0-9.]+)/i) : null;
+
+                        if (matchTime && matchTime[1]) {
+                            latencyMs = parseFloat(matchTime[1]);
+                            latency = `${latencyMs} ms`;
+                        } else if (matchRtt && matchRtt[1]) {
+                            latencyMs = parseFloat(matchRtt[1]);
+                            latency = `${latencyMs} ms`;
                         }
-                        resolve({alive: true, latency});
+
+                        resolve({alive: true, latency, latencyMs});
                     } else {
-                        resolve({alive: false, latency: 'Timeout/Error'});
+                        resolve({alive: false, latency: 'Timeout/Error', latencyMs: Infinity});
                     }
                 } catch (err) {
-                    resolve({alive: false, latency: 'Error'});
+                    resolve({alive: false, latency: 'Error', latencyMs: Infinity});
                 }
             });
         });
