@@ -1,0 +1,14 @@
+{
+  "name": "Servers Alive Monitor",
+  "description": "Monitors a list of servers via ping and shows status in the panel with red/green indicator icon.",
+  "uuid": "servers-alive@custom.extension",
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.servers-alive"
+}

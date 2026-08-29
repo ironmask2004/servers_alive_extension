@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="servers-alive">
+  <schema id="org.gnome.shell.extensions.servers-alive" path="/org/gnome/shell/extensions/servers-alive/">
+    <key name="servers-list" type="as">
+      <default>['1.1.1.1', '8.8.8.8']</default>
+      <summary>List of servers / IPs / Hostnames</summary>
+      <description>Array of hostnames or IP addresses to ping.</description>
+    </key>
+    <key name="check-interval" type="i">
+      <default>30</default>
+      <summary>Check interval</summary>
+      <description>Interval in seconds between ping checks.</description>
+    </key>
+    <key name="ping-timeout" type="i">
+      <default>2</default>
+      <summary>Ping timeout</summary>
+      <description>Timeout in seconds for each ping command.</description>
+    </key>
+  </schema>
+</schemalist>

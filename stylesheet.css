@@ -1,0 +1,25 @@
+.servers-alive-icon-ok {
+    color: #33d17a;
+}
+
+.servers-alive-icon-error {
+    color: #e01b24;
+}
+
+.servers-alive-icon-checking {
+    color: #f6d32d;
+}
+
+.server-status-badge-ok {
+    color: #33d17a;
+    font-weight: bold;
+}
+
+.server-status-badge-error {
+    color: #e01b24;
+    font-weight: bold;
+}
+
+.server-status-badge-checking {
+    color: #f6d32d;
+}
