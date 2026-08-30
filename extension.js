@@ -20,6 +20,18 @@ class ServerIndicator extends PanelMenu.Button {
         this._cancellables = [];
         this._serverStatuses = new Map(); // server -> { alive: boolean|null, latency: string }
 
+        this._networkMonitor = Gio.NetworkMonitor.get_default();
+        this._networkMonitorChangedId = this._networkMonitor.connect('network-changed', (monitor, available) => {
+            if (available) {
+                this._restartCheckTimer();
+                this._checkAllServers();
+            } else {
+                this._cancelPendingChecks();
+                this._updatePanelIcon(null);
+                this._refreshMenuServerList();
+            }
+        });
+
         // Main panel icon
         this._icon = new St.Icon({
             icon_name: 'network-server-symbolic',
@@ -141,7 +153,10 @@ class ServerIndicator extends PanelMenu.Button {
                 y_align: Clutter.ActorAlign.CENTER,
             });
 
-            if (!status || status.alive === null) {
+            if (!this._networkMonitor.network_available) {
+                statusLabel.text = _('Waiting for network...');
+                statusLabel.style_class = 'server-status-badge-checking';
+            } else if (!status || status.alive === null) {
                 statusLabel.text = _('Checking...');
                 statusLabel.style_class = 'server-status-badge-checking';
             } else if (status.alive) {
@@ -160,7 +175,9 @@ class ServerIndicator extends PanelMenu.Button {
     _startCheckTimer() {
         const interval = Math.max(5, this._settings.get_int('check-interval'));
         this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, interval, () => {
-            this._checkAllServers();
+            if (this._networkMonitor.network_available) {
+                this._checkAllServers();
+            }
             return GLib.SOURCE_CONTINUE;
         });
     }
@@ -198,16 +215,34 @@ class ServerIndicator extends PanelMenu.Button {
             return;
         }
 
+        // If network is not available yet (e.g. right after boot/login), do not ping or report failure
+        if (!this._networkMonitor.network_available) {
+            this._cancelPendingChecks();
+            this._updatePanelIcon(null);
+            this._refreshMenuServerList();
+            return;
+        }
+
         this._cancelPendingChecks();
 
         const pingPromises = servers.map(async server => {
             const result = await this._pingServer(server, timeout);
+            if (!this._networkMonitor.network_available) {
+                return {alive: null, latency: 'Waiting for network...', latencyMs: Infinity};
+            }
             this._serverStatuses.set(server, result);
             this._refreshMenuServerList();
             return result;
         });
 
         const results = await Promise.all(pingPromises);
+
+        if (!this._networkMonitor.network_available) {
+            this._updatePanelIcon(null);
+            this._refreshMenuServerList();
+            return;
+        }
+
         const allAlive = results.every(r => r.alive);
 
         this._updatePanelIcon(allAlive);
@@ -266,10 +301,12 @@ class ServerIndicator extends PanelMenu.Button {
         this._icon.remove_style_class_name('servers-alive-icon-ok');
         this._icon.remove_style_class_name('servers-alive-icon-error');
 
-        if (allAlive) {
+        if (allAlive === true) {
             this._icon.add_style_class_name('servers-alive-icon-ok');
-        } else {
+        } else if (allAlive === false) {
             this._icon.add_style_class_name('servers-alive-icon-error');
+        } else {
+            this._icon.add_style_class_name('servers-alive-icon-checking');
         }
     }
 
@@ -282,6 +319,11 @@ class ServerIndicator extends PanelMenu.Button {
         if (this._settingsChangedId) {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = null;
+        }
+
+        if (this._networkMonitorChangedId) {
+            this._networkMonitor.disconnect(this._networkMonitorChangedId);
+            this._networkMonitorChangedId = null;
         }
 
         this._cancelPendingChecks();
