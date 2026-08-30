@@ -16,5 +16,30 @@
       <summary>Ping timeout</summary>
       <description>Timeout in seconds for each ping command.</description>
     </key>
+    <key name="work-hours-servers" type="as">
+      <default>[]</default>
+      <summary>Work hours only servers</summary>
+      <description>List of server hostnames that should only be checked during work hours.</description>
+    </key>
+    <key name="work-hours-start" type="i">
+      <default>9</default>
+      <summary>Work hours start</summary>
+      <description>Starting hour of office working hours (0-23 in 24-hour format).</description>
+    </key>
+    <key name="work-hours-end" type="i">
+      <default>18</default>
+      <summary>Work hours end</summary>
+      <description>Ending hour of office working hours (0-23 in 24-hour format).</description>
+    </key>
+    <key name="work-days-only" type="b">
+      <default>true</default>
+      <summary>Work days only</summary>
+      <description>Whether office working hours only apply on configured working days.</description>
+    </key>
+    <key name="work-days-type" type="s">
+      <default>'sun-fri'</default>
+      <summary>Work days schedule</summary>
+      <description>Working days schedule: 'sun-fri' (Sunday to Friday), 'mon-fri' (Monday to Friday), 'sun-thu' (Sunday to Thursday), 'mon-sat' (Monday to Saturday), or 'all' (Every day).</description>
+    </key>
   </schema>
 </schemalist>

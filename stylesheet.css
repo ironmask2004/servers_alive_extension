@@ -10,6 +10,10 @@
     color: #f6d32d;
 }
 
+.servers-alive-icon-off-hours {
+    color: #9a9996;
+}
+
 .server-status-badge-ok {
     color: #33d17a;
     font-weight: bold;
@@ -22,4 +26,9 @@
 
 .server-status-badge-checking {
     color: #f6d32d;
+}
+
+.server-status-badge-off-hours {
+    color: #9a9996;
+    font-weight: bold;
 }
